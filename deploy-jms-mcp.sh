@@ -40,8 +40,10 @@ log_level=INFO
 debug=false
 
 # Tool filtering: comma-separated OpenAPI tags. Only set one of include/exclude.
-# Default exposes only 作业执行 (ops) capabilities. Edit to widen/narrow.
-include_tags=ops_adhocs,ops_ansible,ops_celery,ops_job-execution,ops_job-executions,ops_jobs,ops_playbook,ops_playbooks,ops_task-executions,ops_username-hints,ops_variables
+# Default exposes 作业执行 (ops) + 资产查询 (assets/accounts suggestions search).
+# Note: JumpServer swagger only exposes */suggestions/ search endpoints for assets,
+# not full list endpoints. Edit include_tags to widen/narrow.
+include_tags=ops_adhocs,ops_ansible,ops_celery,ops_job-execution,ops_job-executions,ops_jobs,ops_playbook,ops_playbooks,ops_task-executions,ops_username-hints,ops_variables,assets_assets,assets_hosts,assets_nodes,assets_databases,assets_clouds,assets_gateways,assets_webs,assets_devices,assets_categories,assets_protocols,accounts_accounts
 exclude_tags=
 EOF
 chmod 600 .env
