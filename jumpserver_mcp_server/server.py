@@ -79,8 +79,45 @@ class JumpServerOpenapiMCP(FastApiMCP):
         self.tools = self._filter_tools(all_tools, openapi_schema)
         logger.info("Filtered to %d tools after applying filters.", len(self.tools))
 
-        # Normalize base URL
-        self._base_url = self._base_url.removesuffix("/")
+        # Append a hand-written tool: JumpServer's swagger does NOT expose the
+        # full asset list endpoint (GET /api/v1/assets/assets/), only the
+        # */suggestions/ search helpers. Expose the full list manually here so
+        # MCP clients can enumerate assets (with pagination + keyword search).
+        self.tools.append(
+            types.Tool(
+                name="list_assets_all",
+                description=(
+                    "List JumpServer assets via GET /api/v1/assets/assets/ (full list, "
+                    "not exposed by the JumpServer swagger). Supports keyword search "
+                    "and pagination. Returns the raw JSON response."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "search": {
+                            "type": "string",
+                            "description": "关键字搜索 (主机名 / IP / 平台 等)",
+                        },
+                        "page": {
+                            "type": "integer",
+                            "default": 1,
+                            "description": "页码，默认 1",
+                        },
+                        "page_size": {
+                            "type": "integer",
+                            "default": 20,
+                            "description": "每页数量，默认 20，最大 1000",
+                        },
+                    },
+                },
+            )
+        )
+        logger.info("Added custom tool list_assets_all (full asset list).")
+
+        # Normalize base URL. Prefer the base_url passed at construction (the
+        # real JumpServer API base); FastApiMCP defaults _base_url to the
+        # placeholder "http://apiserver", which would break every tool call.
+        self._base_url = (self.base_url or self._base_url or "").removesuffix("/")
 
         # Create the MCP lowlevel server
         mcp_server: Server = Server(self.name, self.description)
@@ -104,12 +141,30 @@ class JumpServerOpenapiMCP(FastApiMCP):
             except Exception as e:
                 logger.error("Error getting session token: %s", e)
                 authorization = ""
+
+            # Hand-written tool: full asset list (bypasses swagger conversion).
+            # Uses the same forwarded Bearer as the swagger-derived tools.
+            if name == "list_assets_all":
+                params = {
+                    "page": arguments.get("page", 1),
+                    "page_size": min(int(arguments.get("page_size", 20)), 1000),
+                }
+                if arguments.get("search"):
+                    params["search"] = arguments["search"]
+                async with httpx.AsyncClient(
+                    verify=False, headers={"Authorization": authorization}, timeout=60
+                ) as client:
+                    resp = await client.get(f"{self._base_url}/assets/assets/", params=params)
+                return [types.TextContent(type="text", text=resp.text)]
+
             http_client = httpx.AsyncClient(
-                verify=False, headers={"Authorization": authorization}, timeout=60
+                verify=False,
+                headers={"Authorization": authorization},
+                timeout=60,
+                base_url=self._base_url or None,
             )
             return await self._execute_api_tool(
                 client=http_client,
-                base_url=self._base_url or "",
                 tool_name=name,
                 arguments=arguments,
                 operation_map=self.operation_map,
