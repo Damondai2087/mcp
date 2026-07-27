@@ -260,6 +260,18 @@ logger.info("Fetching OpenAPI schema from API URL: %s", swagger_url)
 swagger_json = get_swagger_json(swagger_url)
 auth = BearerAuth(settings.api_token)
 http_client = httpx.AsyncClient(auth=auth, verify=False)
+
+# Optional tag-based tool filtering (configured via .env: include_tags / exclude_tags).
+# Comma-separated OpenAPI tags; only one of the two may be set.
+include_tags = [t.strip() for t in settings.include_tags.split(",") if t.strip()] or None
+exclude_tags = [t.strip() for t in settings.exclude_tags.split(",") if t.strip()] or None
+if include_tags and exclude_tags:
+    raise ValueError("Set only one of include_tags / exclude_tags in .env, not both")
+if include_tags:
+    logger.info("Filtering MCP tools to include_tags: %s", include_tags)
+elif exclude_tags:
+    logger.info("Filtering MCP tools to exclude_tags: %s", exclude_tags)
+
 mcp = JumpServerOpenapiMCP(
     app,
     name="JumpServer API MCP",
@@ -269,6 +281,8 @@ mcp = JumpServerOpenapiMCP(
     api_token=settings.api_token,
     http_client=http_client,
     swagger_json=swagger_json,
+    include_tags=include_tags,
+    exclude_tags=exclude_tags,
 )
 mount_path = settings.base_path
 mount_path = mount_path.strip('"').strip("'")

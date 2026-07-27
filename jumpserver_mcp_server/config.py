@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     log_level: str = 'INFO'
     debug: bool = False
     jumpserver_url: str = ''
+    # Comma-separated OpenAPI tags. Only one of include/exclude may be set.
+    # Examples: include_tags = "ops_adhocs,ops_jobs,ops_playbooks"
+    include_tags: str = ''
+    exclude_tags: str = ''
 
 
 settings = Settings()
